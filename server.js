@@ -14,6 +14,16 @@ app.get('/', (req, res) => {
   res.json({ status: 'Backend is running!' });
 });
 
+// Test endpoint to check if API keys are loaded
+app.get('/test-keys', (req, res) => {
+  res.json({
+    fmp_key_exists: !!process.env.FMP_API_KEY,
+    fmp_key_length: process.env.FMP_API_KEY ? process.env.FMP_API_KEY.length : 0,
+    anthropic_key_exists: !!process.env.ANTHROPIC_API_KEY,
+    anthropic_key_length: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.length : 0
+  });
+});
+
 // Income statement endpoint
 app.get('/api/income-statement/:ticker', async (req, res) => {
   try {
