@@ -17,8 +17,8 @@ app.get('/', (req, res) => {
 // Test endpoint to check if API keys are loaded
 app.get('/test-keys', (req, res) => {
   res.json({
-    fmp_key_exists: !!process.env.FMP_API_KEY,
-    fmp_key_length: process.env.FMP_API_KEY ? process.env.FMP_API_KEY.length : 0,
+    alpha_vantage_key_exists: !!process.env.ALPHA_VANTAGE_API_KEY,
+    alpha_vantage_key_length: process.env.ALPHA_VANTAGE_API_KEY ? process.env.ALPHA_VANTAGE_API_KEY.length : 0,
     anthropic_key_exists: !!process.env.ANTHROPIC_API_KEY,
     anthropic_key_length: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.length : 0
   });
@@ -29,10 +29,30 @@ app.get('/api/income-statement/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
     const response = await fetch(
-      `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=annual&limit=5&apikey=${process.env.FMP_API_KEY}`
+      `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${ticker}&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`
     );
     const data = await response.json();
-    res.json(data);
+    
+    if (data.Note || data['Error Message']) {
+      return res.status(429).json({ error: data.Note || data['Error Message'] });
+    }
+    
+    // Transform Alpha Vantage data to match FMP format
+    const annualReports = data.annualReports || [];
+    const transformed = annualReports.slice(0, 5).map(report => ({
+      date: report.fiscalDateEnding,
+      revenue: parseInt(report.totalRevenue) || 0,
+      costOfRevenue: parseInt(report.costOfRevenue) || 0,
+      grossProfit: parseInt(report.grossProfit) || 0,
+      operatingExpenses: parseInt(report.operatingExpenses) || 0,
+      ebitda: parseInt(report.ebitda) || 0,
+      researchAndDevelopmentExpenses: parseInt(report.researchAndDevelopment) || 0,
+      sellingGeneralAndAdministrativeExpenses: parseInt(report.sellingAndMarketingExpenses) || 0,
+      depreciationAndAmortization: parseInt(report.depreciationAndAmortization) || 0,
+      netIncome: parseInt(report.netIncome) || 0
+    }));
+    
+    res.json(transformed);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -43,10 +63,24 @@ app.get('/api/balance-sheet/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
     const response = await fetch(
-      `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?period=annual&limit=5&apikey=${process.env.FMP_API_KEY}`
+      `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${ticker}&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`
     );
     const data = await response.json();
-    res.json(data);
+    
+    if (data.Note || data['Error Message']) {
+      return res.status(429).json({ error: data.Note || data['Error Message'] });
+    }
+    
+    const annualReports = data.annualReports || [];
+    const transformed = annualReports.slice(0, 5).map(report => ({
+      date: report.fiscalDateEnding,
+      totalCurrentAssets: parseInt(report.totalCurrentAssets) || 0,
+      totalCurrentLiabilities: parseInt(report.totalCurrentLiabilities) || 0,
+      totalAssets: parseInt(report.totalAssets) || 0,
+      totalLiabilities: parseInt(report.totalLiabilities) || 0
+    }));
+    
+    res.json(transformed);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -57,10 +91,23 @@ app.get('/api/cash-flow/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
     const response = await fetch(
-      `https://financialmodelingprep.com/api/v3/cash-flow-statement/${ticker}?period=annual&limit=5&apikey=${process.env.FMP_API_KEY}`
+      `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${ticker}&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`
     );
     const data = await response.json();
-    res.json(data);
+    
+    if (data.Note || data['Error Message']) {
+      return res.status(429).json({ error: data.Note || data['Error Message'] });
+    }
+    
+    const annualReports = data.annualReports || [];
+    const transformed = annualReports.slice(0, 5).map(report => ({
+      date: report.fiscalDateEnding,
+      operatingCashFlow: parseInt(report.operatingCashflow) || 0,
+      capitalExpenditure: parseInt(report.capitalExpenditures) || 0,
+      freeCashFlow: (parseInt(report.operatingCashflow) || 0) - Math.abs(parseInt(report.capitalExpenditures) || 0)
+    }));
+    
+    res.json(transformed);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -71,10 +118,24 @@ app.get('/api/profile/:ticker', async (req, res) => {
   try {
     const { ticker } = req.params;
     const response = await fetch(
-      `https://financialmodelingprep.com/api/v3/profile/${ticker}?apikey=${process.env.FMP_API_KEY}`
+      `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${ticker}&apikey=${process.env.ALPHA_VANTAGE_API_KEY}`
     );
     const data = await response.json();
-    res.json(data);
+    
+    if (data.Note || data['Error Message']) {
+      return res.status(429).json({ error: data.Note || data['Error Message'] });
+    }
+    
+    // Transform to array format to match FMP
+    const transformed = [{
+      companyName: data.Name,
+      price: parseFloat(data['50DayMovingAverage']) || 150,
+      industry: data.Industry,
+      sector: data.Sector,
+      mktCap: parseInt(data.MarketCapitalization) || 0
+    }];
+    
+    res.json(transformed);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
